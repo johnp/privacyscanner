@@ -15,5 +15,6 @@ from .trackerdetect import TrackerDetectExtractor
 from .screenshot import ScreenshotExtractor
 from .imprint import ImprintExtractor
 from .privacypolicyurl import PrivacyPolicyURLExtractor
+from .privacypolicytext import PrivacyPolicyTextExtractor
 from .hstspreload import HSTSPreloadExtractor
 from .fingerprinting import FingerprintingExtractor

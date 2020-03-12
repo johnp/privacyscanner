@@ -244,14 +244,16 @@ class ChromeScan:
     def __init__(self, extractor_classes):
         self._extractor_classes = extractor_classes
 
-    def scan(self, result, logger, options, meta, debugging_port=9222):
+    def scan(self, result, logger, options, meta, debugging_port=9222, site_url=None):
+        if not site_url:
+            site_url = result['site_url']
         executable = options['chrome_executable']
         scanner = PageScanner(self._extractor_classes)
         chrome_error = None
         content = None
         with ChromeBrowser(debugging_port, executable) as browser:
             try:
-                content = scanner.scan(browser, result, logger, options)
+                content = scanner.scan(browser, result, logger, options, site_url=site_url)
             except pychrome.TimeoutException:
                 if meta.is_first_try:
                     raise RetryScan('First timeout with Chrome.')
@@ -280,7 +282,10 @@ class PageScanner:
         self._page_loaded = threading.Event()
         self._reset()
 
-    def scan(self, browser, result, logger, options):
+    def scan(self, browser, result, logger, options, site_url=None):
+        if not site_url:
+            site_url = result['site_url']
+
         self._tab = browser.new_tab()
         self._tab.start()
 
@@ -332,7 +337,7 @@ class PageScanner:
 
         self._page.scan_start = datetime.utcnow()
         try:
-            self._tab.Page.navigate(url=result['site_url'],
+            self._tab.Page.navigate(url=site_url,
                                     _timeout=options.get('timeout', 15))
         except pychrome.TimeoutException:
             self._tab.stop()
@@ -485,7 +490,8 @@ class PageScanner:
                     },
                     'args': args
                 })
-            self._receive_log(*call_frames[0]['args'], call_frames[1:])
+            if len(call_frames) > 2:  # TODO: privacypolicy scanmodule crashes otherwise
+                self._receive_log(*call_frames[0]['args'], call_frames[1:])
         if self._debugger_attached.is_set():
             self._tab.Debugger.resume()
 

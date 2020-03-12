@@ -2,6 +2,7 @@ QUEUE_DB_DSN = 'dbname=privacyscore user=privacyscore password=privacyscore host
 MAX_EXECUTION_TIMES = {None: 300}
 SCAN_MODULE_OPTIONS = {}
 SCAN_MODULES = ['privacyscanner.scanmodules.chromedevtools.ChromeDevtoolsScanModule',
+                'privacyscanner.scanmodules.privacypolicy.PrivacyPolicyScanModule',
                 'privacyscanner.scanmodules.dns.DNSScanModule',
                 'privacyscanner.scanmodules.mail.MailScanModule',
                 'privacyscanner.scanmodules.serverleaks.ServerleaksScanModule',
