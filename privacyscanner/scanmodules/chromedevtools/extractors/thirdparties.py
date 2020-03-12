@@ -30,16 +30,19 @@ class ThirdPartyExtractor(Extractor):
                 if cname is None:
                     continue  # no CNAME or lookup failed
                 parsed_cname = parse_domain(cname)
-                if parsed_cname.registered_domain in first_party_domains or cname == self.result.get('final_url_cname', None):
+                if parsed_cname.registered_domain in first_party_domains or cname == self.result.get('final_url_cname',
+                                                                                                     None):
                     continue  # points to first-party sub-domain or to the same CNAME as final_url
-                # else remember the third-party cname and continue with it as a third-party request
-                # TODO: should the original_url.fqdn also be added to the 'fqdns' set?
-                original_url = extracted_url
-                extracted_url = parsed_cname
-                third_parties['cnames'][original_url.fqdn] = extracted_url.fqdn
+                # else remember the third-party cname and continue like for a normal third-party request
+                third_parties['cnames'][extracted_url.fqdn] = parsed_cname.fqdn
+                result_cname = parsed_cname
+            else:
+                result_cname = None
 
             request['is_thirdparty'] = True
             third_parties['fqdns'].add(extracted_url.fqdn)
+            if result_cname:
+                third_parties['fqdns'].add(result_cname.fqdn)
             if parsed_url.scheme not in ('http', 'https'):
                 continue
             third_parties['num_{}_requests'.format(parsed_url.scheme)] += 1
