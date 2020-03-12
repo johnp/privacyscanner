@@ -1,11 +1,13 @@
 from privacyscanner.scanmodules.chromedevtools.utils import parse_domain
 from privacyscanner.scanmodules.chromedevtools.extractors.base import Extractor
+from privacyscanner.scanmodules.chromedevtools.extractors.utils import get_cname
 
 
 class ThirdPartyExtractor(Extractor):
     def extract_information(self):
         third_parties = {
             'fqdns': set(),
+            'cnames': dict(),
             'num_http_requests': 0,
             'num_https_requests': 0
         }
@@ -15,12 +17,27 @@ class ThirdPartyExtractor(Extractor):
             first_party_domains.add(extracted.registered_domain)
         for request in self.page.request_log:
             request['is_thirdparty'] = False
+            if request['url'].startswith('data:'):
+                continue
+
             extracted_url = parse_domain(request['url'])
             parsed_url = request['parsed_url']
             if extracted_url.registered_domain in first_party_domains:
-                continue
-            if request['url'].startswith('data:'):
-                continue
+                # Test if first-party fqdn resolves to a CNAME => may be CNAME tracking
+                # Note: We rely on the resolver to handle multi-level CNAME indirection. Also, a CNAME record should
+                # have the same effect on A and AAAA requests, so we can get away with just checking one of them.
+                cname = get_cname(self, extracted_url.fqdn, 'A')
+                if cname is None:
+                    continue  # no CNAME or lookup failed
+                parsed_cname = parse_domain(cname)
+                if parsed_cname.registered_domain in first_party_domains or cname == self.result.get('final_url_cname', None):
+                    continue  # points to first-party sub-domain or to the same CNAME as final_url
+                # else remember the third-party cname and continue with it as a third-party request
+                # TODO: should the original_url.fqdn also be added to the 'fqdns' set?
+                original_url = extracted_url
+                extracted_url = parsed_cname
+                third_parties['cnames'][original_url.fqdn] = extracted_url.fqdn
+
             request['is_thirdparty'] = True
             third_parties['fqdns'].add(extracted_url.fqdn)
             if parsed_url.scheme not in ('http', 'https'):

@@ -6,7 +6,6 @@ from privacyscanner.scanmodules.chromedevtools.utils import parse_domain
 from privacyscanner.scanmodules.chromedevtools.extractors.base import Extractor
 from privacyscanner.utils import download_file
 
-
 EASYLIST_DOWNLOAD_PREFIX = 'https://easylist.to/easylist/'
 EASYLIST_FILES = ['easylist.txt', 'easyprivacy.txt', 'fanboy-annoyance.txt']
 EASYLIST_PATH = Path('easylist')
@@ -14,6 +13,7 @@ EASYLIST_PATH = Path('easylist')
 _adblock_rules_cache = None
 
 
+# TODO: mark optional dependency on cnames from thirdparties.py
 class TrackerDetectExtractor(Extractor):
     def extract_information(self):
         self._load_rules()
@@ -34,6 +34,23 @@ class TrackerDetectExtractor(Extractor):
                 match_result = self.rules.match(request['url'][:150],
                                                 request['document_url'])
                 is_tracker = match_result.is_match
+                if self.options.get('TrackerDetectExtractor.uncloak_cnames', True) and not is_tracker:
+                    if 'third_parties' not in self.result or 'cnames' not in self.result['third_parties']:
+                        self.logger.error("Missing third-party CNAMEs from a previous extractor")
+                    else:
+                        extracted_url = parse_domain(request['url'])
+                        try:
+                            cname = self.result['third_parties']['cnames'][extracted_url.fqdn]
+                            # TODO: pass origin? adblockeval doesn't seem to support "||example.com^$third-party", but
+                            #       otoh we already filter out any CNAMEs that share the same registered domain or
+                            #       that point to the origin, so it doesn't strictly matter here, since we'll
+                            #       have triggered a KeyError in that case already.
+                            match_result = self.rules.match(cname, cname)
+                            is_tracker = match_result.is_match
+                            # keep `extracted` as the pre-cname URL to correctly match cookies
+                        except KeyError:
+                            pass  # no CNAME
+
                 num_evaluations += 1
             if is_tracker:
                 request['is_tracker'] = True
