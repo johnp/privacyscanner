@@ -105,7 +105,7 @@ class JobQueue:
                     result = dict(c.fetchall())
                 else:
                     result = {}
-                job = Job(scan_id, scan_module, result, num_tries, dependency_order, priority)
+                job = Job(scan_id, scan_module, result, num_tries + 1, dependency_order, priority)
                 self._last_job = job
                 return job
 
