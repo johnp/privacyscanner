@@ -56,3 +56,4 @@ class ThirdPartyExtractor(Extractor):
                 domain = domain[1:]
             domain = parse_domain(domain).registered_domain
             cookie['is_thirdparty'] = domain not in first_party_domains
+        self.result.mark_dirty('cookies')
