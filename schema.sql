@@ -1,7 +1,7 @@
 --
 -- Note: This schema is an extract from the Django models of the new (not yet
 -- released) version of PrivacyScore.
--- 
+--
 BEGIN;
 
 CREATE TABLE base_author (
@@ -159,6 +159,23 @@ CREATE FUNCTION update_scan_info() RETURNS trigger
 
 CREATE TRIGGER scan_update AFTER INSERT OR DELETE OR UPDATE OF time_finished ON scanner_scan FOR EACH ROW EXECUTE PROCEDURE update_scan_info();
 
--- TODO: Add trigger function which sets the scanner_scan(scan_finished) field.
+
+CREATE FUNCTION set_scan_time_finished() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+        BEGIN
+          IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+            IF NEW.time_finished IS NOT NULL THEN
+              UPDATE scanner_scan SET time_finished = NEW.time_finished WHERE id = NEW.scan_id;
+            END IF;
+            RETURN NEW;
+          ELSIF (TG_OP = 'DELETE' or TG_OP = 'TRUNCATE') THEN
+            UPDATE scanner_scan SET time_finished = NULL WHERE id = NEW.scan_id;
+            RETURN OLD;
+          END IF;
+        END
+        $$;
+
+CREATE TRIGGER scan_finished AFTER INSERT OR DELETE OR UPDATE OF time_finished ON scanner_scaninfo FOR EACH ROW EXECUTE PROCEDURE set_scan_time_finished();
 
 COMMIT;
