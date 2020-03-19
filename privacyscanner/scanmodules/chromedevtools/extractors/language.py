@@ -28,7 +28,7 @@ class LanguageExtractor(Extractor):
             # should be a ISO-639-1 language tag
             lang = get_attr(self, html_node['nodeId'], 'lang')
             if lang and len(lang) != 2:
-                self.logger.warning("Non ISO-639-1 language code: %s => clipped to 2 characters", lang)
+                # self.logger.warning("Non ISO-639-1 language code: %s => clipped to 2 characters", lang)
                 lang = lang[:2].lower()
             elif lang and len(lang) == 2:
                 lang = lang.lower()

@@ -48,7 +48,6 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
 
         scan_site = parse_domain(self.result['site_url'])
         alt_policy_url = None
-        # TODO: check idna
         for name, entry in self.tracker_radar_privacy_policies.items():
             url = entry.get('url')
             if not url:
@@ -57,6 +56,7 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
 
             if url:
                 parsed_url = parse_domain(url)
+                # TODO: check if these could mismatch due too idna / non-idna encoding
                 if parsed_url.registered_domain == scan_site.registered_domain:
                     alt_policy_url = entry.get('privacyPolicy') or None
             # TODO: add name matching, e.g. from SSL certificate
@@ -72,7 +72,8 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
                 # our keyword_url (roughly) matches the dataset
                 return  # prefer our version (could have regional query component, etc.)
 
-            # TODO: only consider high priority match good vs dataset (too bad href crawling)
+            # TODO: only consider high priority match good vs dataset
+            #       (our KeywordURLExtractor seems to return a bad result too often)
             if not any(keyword.replace(' ', '-') in best_candidate.url for keyword in self.KEYWORDS.keys()):
                 # our URL looks kind'a bad; use the other one
                 self.logger.info("Chose dataset derived policy url %s over url %s found via keyword '%s' (prio: %s)",

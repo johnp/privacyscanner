@@ -44,7 +44,7 @@ class TrackerRadarExtractor(Extractor):
         if third_party_domains and len(third_party_domains) > 0:
             for fqdn in third_party_domains:
                 domain_data = self._load_data(fqdn)
-                if not domain_data:
+                if not domain_data or not domain_data.get('owner'):
                     third_party_owners['unrecognized_fqdns'].append(fqdn)
                     continue
                 owner = domain_data['owner'].get('name')
@@ -52,11 +52,6 @@ class TrackerRadarExtractor(Extractor):
                 third_party_owners['owners'][owner]['displayName'] = domain_data['owner'].get('displayName')
                 third_party_owners['owners'][owner]['fqdns'].append(fqdn)
                 third_party_owners['owners'][owner]['categories'].update(domain_data.get('categories'))
-
-                if not owner:  # wut?
-                    self.logger.warning("Owner without name for fqdn: %s %s", fqdn,
-                                        third_party_owners['owners'][owner]['displayName'])
-
 
             # no set serializer yet :/
             for details in third_party_owners['owners'].values():
