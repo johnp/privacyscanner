@@ -80,7 +80,7 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
                 self.result[self.RESULT_KEY] = alt_policy_url
                 try:
                     del self.result[self.RESULT_KEY + '_keyword']
-                except KeyError:
+                except (KeyError, AttributeError):
                     pass
 
             return
