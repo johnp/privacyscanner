@@ -51,6 +51,7 @@ class PrivacyPolicyOrganizationsExtractor(Extractor):
         orgs = set(ent.text for ent in doc.ents if ent.text and ent.label_ == 'ORG')
 
         self.result['privacy_policy_organizations'] = sorted(orgs)
+        self.result['privacy_policy_organizations_model'] = nlp.meta.get('name')
         self.logger.info('PrivacyPolicyOrganizationsExtractor: %.3f s', time.time() - start)
 
     def _load_spacy(self, language):
