@@ -41,6 +41,9 @@ class PrivacyPolicyOrganizationsExtractor(Extractor):
 
         try:
             nlp = self._load_spacy(lang)
+            if not nlp:
+                self.result['privacy_policy_organizations'] = None
+                return
         except (OSError, AttributeError) as e:
             self.logger.exception("Error loading spaCy language model %s:\n%s", lang, str(e))
             return
@@ -64,9 +67,13 @@ class PrivacyPolicyOrganizationsExtractor(Extractor):
     def __load_spacy_any(self, language):
         try:
             nlp = spacy.load(language)
-        except IOError:
+        except (OSError, IOError, AttributeError):
             spacy.cli.download(language)
-            nlp = spacy.load(language)
+            try:
+                nlp = spacy.load(language)
+            except (OSError, IOError, AttributeError) as e:
+                self.logger.exception("Error loading spaCy language model %s:\n%s", e)
+                return None
         return nlp
 
     @staticmethod
