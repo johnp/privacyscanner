@@ -49,6 +49,9 @@ CHROME_OPTIONS = [
     # Skip first run wizards
     '--no-first-run',
 
+    # Disable Google's field trials that can even affect chromium builds
+    '--disable-field-trial-config',
+
     # Disable timers being throttled in background pages/tabs
     '--disable-background-timer-throttling',
 
