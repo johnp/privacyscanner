@@ -11,12 +11,22 @@ class ThirdPartyExtractor(Extractor):
             'num_http_requests': 0,
             'num_https_requests': 0
         }
+        # Note: we could look for more first party domains / the first party company by e.g. looking at the imprint text
+        #       (imagine e.g., a company product website that has the companies' main website as "third-party",
+        #        but which is actually the same party. In practice this should seldom happen and should only ever
+        #        affect a small amount of wrongly classified third parties.)
+        # Possible sources: * SSL Certificate(!)
+        # * https://github.com/duckduckgo/tracker-radar-detector/blob/master/src/entities/update-entities.js
         first_party_domains = set()
         for url in (self.result['site_url'], self.result['final_url']):
             extracted = parse_domain(url)
             first_party_domains.add(extracted.registered_domain)
         for request in self.page.request_log:
             request['is_thirdparty'] = False
+            if not request['url']:
+                self.logger.error("Empty URL in request_log!")
+                continue
+
             if request['url'].startswith('data:'):
                 continue
 
@@ -46,8 +56,7 @@ class ThirdPartyExtractor(Extractor):
             if parsed_url.scheme not in ('http', 'https'):
                 continue
             third_parties['num_{}_requests'.format(parsed_url.scheme)] += 1
-        third_parties['fqdns'] = list(third_parties['fqdns'])
-        third_parties['fqdns'].sort()
+        third_parties['fqdns'] = sorted(third_parties['fqdns'])
         self.result['third_parties'] = third_parties
 
         for cookie in self.result['cookies']:

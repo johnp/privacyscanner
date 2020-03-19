@@ -11,6 +11,7 @@ class ScanModule:
     name = None  # type: str
     dependencies = None  # type: List[str]
     required_keys = None  # type: List[str]
+    reuse_results = False  # type: bool
     logger = None  # type: logging.Logger
     options = None  # type: Dict[str, Any]
 

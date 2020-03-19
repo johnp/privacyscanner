@@ -7,6 +7,11 @@ from urllib.parse import urlparse
 import requests
 from requests.exceptions import ConnectionError
 from requests.models import Response
+# TODO: this AFAIK uses TLDExtract internal `TLDExtract` instance
+#       instead of our one with the `TLDEXTRACT_CACHE_FILE` from
+#       chromedevtools/utils.py
+# (this is the only place where `include_psl_private_domains` makes a
+#  difference I think)
 from tldextract import extract
 
 from privacyscanner.scanmodules import ScanModule

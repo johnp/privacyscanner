@@ -38,6 +38,28 @@ FROM (
 WHERE (kv).key IN %s
 """
 
+# TODO: handle latest_scan_id == -1 and error our appropriately
+#       (suggestion: allow `NULL` for `latest_scan_id`)
+# TODO: better error handling if the latest scan result doesn't have the required keys
+_FETCH_PREVIOUS_SCAN_RESULT_QUERY = """
+SELECT (kv).key, (kv).value
+FROM (
+  SELECT jsonb_each(result) AS kv
+  FROM scanner_scan -- previous scan
+  WHERE id = (
+    SELECT latest_scan_id
+    FROM sites_site
+    WHERE url = (
+        SELECT
+            result->>'site_url'
+        FROM scanner_scan -- new scan
+        WHERE id = %s
+    )
+  )
+) AS s
+WHERE (kv).key IN %s
+"""
+
 _UPDATE_RESULT_QUERY = """
 UPDATE scanner_scan
 SET result = result || %s::jsonb
@@ -78,6 +100,9 @@ class JobQueue:
     def report_result(self, updates):
         assert self._last_job is not None
         with self._conn.cursor() as c:
+            # TODO: somehow the `result` column sometimes starts with text like
+            #  "213.82 kB (204.8 kB loaded)"
+            #  before the actual json. Not sure where this comes from...
             c.execute(_UPDATE_RESULT_QUERY, (Json(updates), self._last_job.scan_id))
         self._last_job = None
         self._conn.commit()
@@ -101,7 +126,10 @@ class JobQueue:
                 job_id, scan_id, scan_module_name, num_tries, dependency_order, priority = job
                 scan_module = self._scan_modules[scan_module_name]
                 if scan_module.required_keys:
-                    c.execute(_FETCH_RESULT_QUERY, (scan_id, tuple(scan_module.required_keys)))
+                    if scan_module.reuse_results:
+                        c.execute(_FETCH_PREVIOUS_SCAN_RESULT_QUERY, (scan_id, tuple(scan_module.required_keys)))
+                    else:
+                        c.execute(_FETCH_RESULT_QUERY, (scan_id, tuple(scan_module.required_keys)))
                     result = dict(c.fetchall())
                 else:
                     result = {}

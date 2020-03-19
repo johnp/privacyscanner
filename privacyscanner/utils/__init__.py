@@ -3,15 +3,18 @@ import os
 import errno
 import fcntl
 import re
+import tarfile
+
 import time
 from base64 import b32encode
 from contextlib import suppress
 from urllib.request import Request, urlopen
+from os.path import abspath, realpath, dirname, join as joinpath
 
 import psutil
 
 
-FAKE_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0'
+FAKE_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0'
 
 
 class DownloadVerificationFailed(Exception):
@@ -41,6 +44,49 @@ class NumericLock:
         fcntl.lockf(self._lock_file.fileno(), fcntl.LOCK_UN)
         self._lock_file.close()
         os.unlink(self._lock_file.name)
+
+
+# From stackoverflow with adaptations.
+# https://stackoverflow.com/questions/10060069
+# ref: https://bugs.python.org/issue21109
+# process_members can be used to filter and re-map TarInfo members by, e.g.,
+# stripping parts of the member.name or even just using the basename.
+# TODO: use pathlib Path
+def extract_tar(fileobj, target_dir, process_members=None):
+    def resolved(path):
+        return realpath(abspath(path))
+
+    def badpath(path, base):
+        # joinpath will ignore base if path is absolute
+        return not resolved(joinpath(base, path)).startswith(base)
+
+    def badlink(info, base):
+        # Links are interpreted relative to the directory containing the link
+        tip = resolved(joinpath(base, dirname(info.name)))
+        return badpath(info.linkname, base=tip)
+
+    def safemembers(members):
+        base = resolved('.')
+
+        for finfo in members:
+            if badpath(finfo.name, base):
+                raise TarExtractSecurityException("{} is blocked (illegal path)".format(finfo.name))
+            elif finfo.issym() and badlink(finfo, base):
+                raise TarExtractSecurityException("{} is blocked: Hard link to {}".format(finfo.name, finfo.linkname))
+            elif finfo.islnk() and badlink(finfo, base):
+                raise TarExtractSecurityException("{} is blocked: Symlink to {}".format(finfo.name, finfo.linkname))
+            else:
+                yield finfo
+
+    with tarfile.open(fileobj=fileobj) as archive:
+        tar_members = safemembers(archive)
+        if process_members:
+            tar_members = process_members(tar_members)
+        archive.extractall(path=target_dir, members=tar_members)
+
+
+class TarExtractSecurityException(Exception):
+    pass
 
 
 def download_file(url, fileobj, verify_hash=None):

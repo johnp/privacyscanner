@@ -127,7 +127,7 @@ ON_NEW_DOCUMENT_JAVASCRIPT = """
     function log(type, message) {
         var setBreakpointOnThisLine;
     }
-    
+
     window.alert = function() {};
     window.confirm = function() {
         return true;
@@ -135,7 +135,7 @@ ON_NEW_DOCUMENT_JAVASCRIPT = """
     window.prompt = function() {
         return true;
     };
-    
+
     __extra_scripts__
 })();
 """.lstrip()
@@ -500,14 +500,14 @@ class PageScanner:
 
     def _cb_load_event_fired(self, timestamp, **kwargs):
         self._page_loaded.set()
-    
+
     def _cb_frame_scheduled_navigation(self, frameId, delay, reason, url, **kwargs):
         # We assume that our scan will finish within 60 seconds including
         # a security margin. So we just ignore scheduled navigations if
         # they are too far in future.
         if delay <= 60:
             self._document_will_change.set()
-    
+
     def _cb_frame_cleared_scheduled_navigation(self, frameId):
         self._document_will_change.clear()
 

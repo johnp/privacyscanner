@@ -4,22 +4,26 @@ from privacyscanner.filehandlers import NoOpFileHandler
 from privacyscanner.result import Result
 from privacyscanner.scanmodules import ScanModule
 from privacyscanner.scanmodules.chromedevtools.chromescan import ChromeScan, find_chrome_executable
-from privacyscanner.scanmodules.chromedevtools.extractors import FinalUrlExtractor, \
+from privacyscanner.scanmodules.chromedevtools.extractors import FinalUrlExtractor, LanguageExtractor, \
     GoogleAnalyticsExtractor, CookiesExtractor, RequestsExtractor, RedirectChainExtractor, \
     TLSDetailsExtractor, CertificateExtractor, ThirdPartyExtractor, InsecureContentExtractor, \
     FailedRequestsExtractor, SecurityHeadersExtractor, TrackerDetectExtractor, \
     CookieStatsExtractor, JavaScriptLibsExtractor, ScreenshotExtractor, ImprintExtractor, \
-    PrivacyPolicyURLExtractor, HSTSPreloadExtractor, FingerprintingExtractor
+    PrivacyPolicyURLExtractor, HSTSPreloadExtractor, \
+    DisconnectmeExtractor, WhotracksmeExtractor, TrackerRadarExtractor, \
+    FingerprintingExtractor
 from privacyscanner.scanmodules.chromedevtools.utils import TLDEXTRACT_CACHE_FILE, parse_domain
 from privacyscanner.utils import file_is_outdated, set_default_options, calculate_jaccard_index
 
 
-EXTRACTOR_CLASSES = [FinalUrlExtractor, RedirectChainExtractor, GoogleAnalyticsExtractor,
-                     CookiesExtractor, RequestsExtractor, TLSDetailsExtractor,
+EXTRACTOR_CLASSES = [FinalUrlExtractor, RedirectChainExtractor, LanguageExtractor,
+                     GoogleAnalyticsExtractor, CookiesExtractor, RequestsExtractor, TLSDetailsExtractor,
                      CertificateExtractor, ThirdPartyExtractor, InsecureContentExtractor,
                      FailedRequestsExtractor, SecurityHeadersExtractor, TrackerDetectExtractor,
                      CookieStatsExtractor, JavaScriptLibsExtractor, ScreenshotExtractor,
-                     ImprintExtractor, PrivacyPolicyURLExtractor, HSTSPreloadExtractor, FingerprintingExtractor]
+                     ImprintExtractor, PrivacyPolicyURLExtractor, HSTSPreloadExtractor,
+                     DisconnectmeExtractor, WhotracksmeExtractor, TrackerRadarExtractor,
+                     FingerprintingExtractor]
 
 EXTRACTOR_CLASSES_HTTPS_RUN = [FinalUrlExtractor, TLSDetailsExtractor, CertificateExtractor,
                                InsecureContentExtractor, SecurityHeadersExtractor,
@@ -46,7 +50,7 @@ class ChromeDevtoolsScanModule(ScanModule):
         chrome_scan = ChromeScan(EXTRACTOR_CLASSES)
         debugging_port = self.options.get('start_port', 9222) + meta.worker_id
         content = chrome_scan.scan(result, self.logger, self.options, meta, debugging_port)
-        if not result['reachable']:
+        if not result.get('reachable', True):
             return
         result['https']['same_content'] = None
         result['https']['same_content_score'] = None

@@ -8,12 +8,14 @@ import string
 import sys
 import tempfile
 import time
+import uuid
 from collections import namedtuple
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+import psycopg2
 from toposort import toposort, toposort_flatten
 
 from privacyscanner.filehandlers import DirectoryFileHandler
@@ -25,7 +27,6 @@ from privacyscanner import defaultconfig
 from privacyscanner.loghandlers import ScanFileHandler, ScanStreamHandler
 from privacyscanner.exceptions import RescheduleLater, RetryScan
 from privacyscanner.utils import NumericLock
-
 
 CONFIG_LOCATIONS = [
     Path('~/.config/privacyscanner/config.py').expanduser(),
@@ -87,10 +88,14 @@ def run_workers(args):
                           config['SCAN_MODULE_OPTIONS'], config['MAX_TRIES'],
                           config['NUM_WORKERS'], config['MAX_EXECUTIONS'],
                           config['MAX_EXECUTION_TIMES'], config['RAVEN_DSN'])
+    # noinspection PyBroadException
     try:
         master.start()
     except Exception:
-        raven_client.captureException()
+        if raven_client:
+            raven_client.captureException()
+        else:
+            raise
 
 
 def scan_site(args):
@@ -206,6 +211,120 @@ def scan_site(args):
         sys.exit(1)
 
 
+# TODO: this works around `site_url` not being marked as unique
+_INSERT_SITE_IFF_NOT_EXISTS_QUERY = """
+INSERT INTO sites_site
+(id, url, is_private, latest_scan_id, date_created, num_views)
+SELECT %(site_id)s, %(site_url)s, %(is_private)s, -1, NOW(), 0
+WHERE NOT EXISTS (
+    SELECT id FROM sites_site WHERE url = %(site_url)s
+)
+ON CONFLICT DO NOTHING
+"""
+
+# TODO: consider cleaning up the dummy scan after actual scan completion,
+#       but since that happens in the JobQueue it's a bit finicky
+_INSERT_DUMMY_SCAN_QUERY = """
+INSERT INTO scanner_scan
+(time_started, result, is_latest, site_id)
+VALUES (NOW(), %s, True, %s)
+RETURNING id
+"""
+
+_INSERT_SCANJOB_QUERY = """
+INSERT INTO scanner_scanjob
+(scan_module, priority, dependency_order, scan_id, not_before)
+VALUES (%s, %s, %s, %s, %s)
+"""
+
+_INSERT_SCANINFO_QUERY = """
+INSERT INTO scanner_scaninfo
+(scan_module, scan_host, time_started, time_finished, scan_id, num_tries)
+VALUES (%s, %s, %s, %s, %s, %s)
+"""
+
+_UPDATE_LATEST_SCAN_ID_QUERY = None
+
+# TODO: Consider implementing this
+_ADD_SITELIST_QUERY = """
+"""
+
+_ADD_SITE_TO_SITELIST_QUERY = """
+INSERT INTO sites_sitelist_sites
+(sitelist_id, site_id)
+VALUES (%s, %s)
+"""
+
+
+def schedule_scans(args):
+    config = load_config(args.config)
+    _require_dependencies(config)
+
+    scan_modules = load_modules(config['SCAN_MODULES'], config['SCAN_MODULE_OPTIONS'])
+    scan_module_names = args.scan_modules
+
+    if scan_module_names is None:
+        scan_module_names = scan_modules.keys()
+
+    # Order scan_module_names by dependency topologically
+    dependencies = {}
+    for scan_module_name in scan_module_names:
+        mod = scan_modules[scan_module_name]
+        dependencies[mod.name] = set(mod.dependencies)
+    scan_module_names = toposort_flatten(dependencies)
+
+    priority = int(args.priority) if args.priority else 5
+    sitelist_id = args.site_list
+
+    # load list of files into memory
+    with open(args.file) as f:
+        site_urls = [line if line.startswith('http://') or line.startswith('https://')
+                     else 'http://{}'.format(line) for line in filter(None, f.read().splitlines())]
+        # TODO: normalize urls via urlsplit ?
+
+    if not site_urls:
+        raise CommandError("File '{}' does not contain any sites to scan.".format(args.file))
+
+    # validate URLs
+    for i, site_url in enumerate(site_urls):
+        site_parsed = urlparse(site_url)
+        if site_parsed.scheme not in ('http', 'https'):
+            raise CommandError('Invalid site_url (number {}): {}'.format(i, site_url))
+
+    conn = psycopg2.connect(config['QUEUE_DB_DSN'])
+    # TODO: consider using batch sql: https://www.psycopg.org/docs/extras.html#fast-execution-helpers
+    with conn.cursor() as c:
+        for site_url in site_urls:
+            # TODO: normalize site_url if sites_site should not contain duplicate http/https entries
+            # TODO: not sure what the new privacyscore does here; I'm just using a deterministic uuid
+            site_id = str(uuid.uuid5(uuid.NAMESPACE_URL, site_url))
+
+            # insert if not exists: sites_site (40 char uuid?)
+            c.execute(_INSERT_SITE_IFF_NOT_EXISTS_QUERY,
+                      # TODO: support `--is-private`?
+                      {'site_id': site_id, 'site_url': site_url, 'is_private': False})
+
+            if sitelist_id:
+                c.execute(_ADD_SITE_TO_SITELIST_QUERY, sitelist_id, site_id)
+
+            # insert dummy Scan for the Worker to fetch site_url from
+            # Note: this should error out on site_url conflict
+            c.execute(_INSERT_DUMMY_SCAN_QUERY,
+                      (json.dumps({'site_url': site_url, 'reachable': True}), site_id))
+            scan_id = c.fetchone()[0]
+
+            # add ScanJob's with associated ScanInfo according to dependency order
+            for dependency_order, scan_module in enumerate(scan_module_names, start=1):
+                c.execute(_INSERT_SCANJOB_QUERY,
+                          (scan_module, priority, dependency_order, scan_id, None))
+                c.execute(_INSERT_SCANINFO_QUERY,
+                          (scan_module, None, None, None, scan_id, 0))
+        conn.commit()
+    pass
+    # workers should automatically pick up scans and fulfill them.
+    # errors land in sentry
+
+
 def update_dependencies(args):
     config = load_config(args.config)
     scan_modules = load_modules(config['SCAN_MODULES'],
@@ -216,7 +335,7 @@ def update_dependencies(args):
         logger = logging.Logger(scan_module.name)
         logger.addHandler(stream_handler)
         if hasattr(scan_module, 'update_dependencies'):
-            logger.info('Updating dependencies')
+            logger.info('Updating dependencies for %s', scan_module.name)
             scan_module.update_dependencies()
             updated.append(scan_module.name)
     if updated:
@@ -271,6 +390,19 @@ def main():
                                   'specified using --scans')
     parser_scan.add_argument('--print', dest='print_result', action='store_true')
     parser_scan.set_defaults(func=scan_site)
+
+    # TODO: maybe this command has a better place in privacyscore-backend...
+    parser_schedule_scans = subparsers.add_parser('schedule_scans')
+    parser_schedule_scans.add_argument('file', help='File containing list of URLs to scan. '
+                                                    'Lines not starting with http:// or https:// '
+                                                    'are considered http://')
+    parser_schedule_scans.add_argument('-c', '--config', help='Configuration_file')
+    parser_schedule_scans.add_argument('-p', '--priority', help='Scan priority (default 5)')
+    parser_schedule_scans.add_argument('-l', '--site-list', help='ID of site list to which to associate given sites')
+    parser_schedule_scans.add_argument('-m', '--scan-modules', dest='scan_modules',
+                                       type=lambda scans: [x.strip() for x in scans.split(',')],
+                                       help='Comma separated list of scan modules')
+    parser_schedule_scans.set_defaults(func=schedule_scans)
 
     parser_print_master_config = subparsers.add_parser('print_master_config')
     parser_print_master_config.add_argument('-c', '--config', help='Configuration_file')

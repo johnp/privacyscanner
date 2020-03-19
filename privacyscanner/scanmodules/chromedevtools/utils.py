@@ -59,4 +59,21 @@ def _javascript_stringify(js_expr):
     """ % js_expr.strip()
 
 
+def walk_fqdn_until_public_suffix(fqdn):
+    psl_suffix = parse_domain(fqdn).suffix
+    while True:
+        yield fqdn
+        try:
+            fqdn = fqdn.split('.', maxsplit=1)[1]
+            if not fqdn or fqdn == psl_suffix:
+                return
+        except IndexError:
+            return
+
+
+# TODO: Check with henning if `include_psl_private_domains=True` is OK
+# Reasoning: This includes stuff like *.appspot.com, where trackers could be hosted and
+#            we don't want to attribute these to, e.g. Google in that case.
+# TODO: shouldn't this live in the top-level utils/ this is used in dns.py as well
+#       and should probably also be used in serverleaks.py?
 parse_domain = TLDExtract()

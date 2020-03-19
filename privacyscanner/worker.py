@@ -320,11 +320,12 @@ class Worker:
             with tempfile.TemporaryDirectory() as temp_dir:
                 old_cwd = os.getcwd()
                 os.chdir(temp_dir)
+                # noinspection PyBroadException
                 try:
                     job.scan_module.logger = logger
                     job.scan_module.scan_site(result, scan_meta)
                 except RetryScan:
-                    self._job_queue.report_failure()
+                    self._job_queue.report_failure()  # rolls-back the job fetch/DELETE => retry
                     self._notify_master('job_failed', (datetime.today(),))
                 except RescheduleLater as e:
                     self._job_queue.reschedule(e.not_before)

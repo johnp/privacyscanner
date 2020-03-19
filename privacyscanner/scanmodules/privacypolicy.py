@@ -3,19 +3,32 @@ from pathlib import Path
 from privacyscanner.scanmodules import ScanModule
 from privacyscanner.scanmodules.chromedevtools import ChromeDevtoolsScanModule
 from privacyscanner.scanmodules.chromedevtools.chromescan import ChromeScan, find_chrome_executable
-from privacyscanner.scanmodules.chromedevtools.extractors import PrivacyPolicyTextExtractor
+from privacyscanner.scanmodules.chromedevtools.extractors import LanguageExtractor, \
+    PrivacyPolicyTextExtractor, PrivacyPolicyOrganizationsExtractor, PrivacyPolicyThirdPartyAnalysis
 from privacyscanner.scanmodules.chromedevtools.utils import TLDEXTRACT_CACHE_FILE, parse_domain
 from privacyscanner.utils import set_default_options, file_is_outdated
 
-EXTRACTOR_CLASSES = [PrivacyPolicyTextExtractor]
+_EXTRACTOR_CLASSES = [LanguageExtractor, PrivacyPolicyTextExtractor]
+
+_EXTRACTOR_CLASSES_WITH_ANALYSIS = [
+    *_EXTRACTOR_CLASSES,
+    PrivacyPolicyOrganizationsExtractor,
+    PrivacyPolicyThirdPartyAnalysis,
+]
 
 
-# TODO: deduplicate stuff from ChromeDevtoolsScanModule
-class PrivacyPolicyScanModule(ScanModule):
+# TODO: deduplicate methods from ChromeDevtoolsScanModule
+class PrivacyPolicyFetchModule(ScanModule):
     name = 'privacypolicy'
     dependencies = ['chromedevtools']
-    # `third_party_companies` is only required for online analysis via PrivacyPolicyMissingCompaniesExtractor
-    required_keys = ['reachable', 'privacy_policy_url', 'third_party_companies']
+    required_keys = ['site_url', 'reachable',
+                     # required by PrivacyPolicyTextExtractor
+                     'privacy_policy_url',
+                     # take site_url language in case the privacy_policy_url doesn't
+                     # specify its language -- should really never happen, but doesn't hurt
+                     'language',
+                     ]
+    _extractor_classes = _EXTRACTOR_CLASSES
 
     def __init__(self, options):
         if 'chrome_executable' not in options:
@@ -28,14 +41,12 @@ class PrivacyPolicyScanModule(ScanModule):
         parse_domain.cache_file = str(cache_file)
 
     def scan_site(self, result, meta):
-        if not result['reachable']:
+        if not result.get('reachable', True):
             return
-        chrome_scan = ChromeScan(EXTRACTOR_CLASSES)
+        chrome_scan = ChromeScan(self._extractor_classes)
         debugging_port = self.options.get('start_port', 9222) + meta.worker_id
         content = chrome_scan.scan(result, self.logger, self.options, meta, debugging_port,
                                    result['privacy_policy_url'])
-        if not result['reachable']:
-            return
 
     def update_dependencies(self):
         max_age = 14 * 24 * 3600
@@ -43,6 +54,21 @@ class PrivacyPolicyScanModule(ScanModule):
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         if file_is_outdated(cache_file, max_age):
             parse_domain.update(fetch_now=True)
-        for extractor_class in EXTRACTOR_CLASSES:
+        for extractor_class in self._extractor_classes:
             if hasattr(extractor_class, 'update_dependencies'):
                 extractor_class.update_dependencies(self.options)
+
+
+class PrivacyPolicyScanModule(PrivacyPolicyFetchModule):
+    _extractor_classes = _EXTRACTOR_CLASSES_WITH_ANALYSIS
+
+    def __init__(self, options):
+        super().__init__(options)
+        self.required_keys += [
+            # required by PrivacyPolicyThirdPartyAnalysis
+            'third_parties',
+            'third_parties_disconnectme',
+            # soft-required by PrivacyPolicyThirdPartyAnalysis
+            'organizations',
+            'third_parties_tracker_radar',
+        ]

@@ -6,6 +6,7 @@ from .finalurl import FinalUrlExtractor
 from .googleanalytics import GoogleAnalyticsExtractor
 from .insecurecontent import InsecureContentExtractor
 from .javascriptlibs import JavaScriptLibsExtractor
+from .language import LanguageExtractor
 from .redirectchain import RedirectChainExtractor
 from .requests import RequestsExtractor
 from .securityheaders import SecurityHeadersExtractor
@@ -15,6 +16,14 @@ from .trackerdetect import TrackerDetectExtractor
 from .screenshot import ScreenshotExtractor
 from .imprint import ImprintExtractor
 from .privacypolicyurl import PrivacyPolicyURLExtractor
-from .privacypolicytext import PrivacyPolicyTextExtractor
 from .hstspreload import HSTSPreloadExtractor
 from .fingerprinting import FingerprintingExtractor
+from .disconnectme import DisconnectmeExtractor
+from .whotracksme import WhotracksmeExtractor
+from .trackerradar import TrackerRadarExtractor
+
+# Extractors specifically for the PrivacyPolicyScanModule
+from .privacypolicytext import PrivacyPolicyTextExtractor
+from .privacypolicyorganizations import PrivacyPolicyOrganizationsExtractor
+from .privacypolicythirdpartyanalysis import PrivacyPolicyThirdPartyAnalysis
+
