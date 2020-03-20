@@ -3,12 +3,12 @@ from pathlib import Path
 from privacyscanner.scanmodules import ScanModule
 from privacyscanner.scanmodules.chromedevtools import ChromeDevtoolsScanModule
 from privacyscanner.scanmodules.chromedevtools.chromescan import ChromeScan, find_chrome_executable
-from privacyscanner.scanmodules.chromedevtools.extractors import LanguageExtractor, \
+from privacyscanner.scanmodules.chromedevtools.extractors import PrivacyPolicyLanguageExtractor, \
     PrivacyPolicyTextExtractor, PrivacyPolicyOrganizationsExtractor, PrivacyPolicyThirdPartyAnalysis
 from privacyscanner.scanmodules.chromedevtools.utils import TLDEXTRACT_CACHE_FILE, parse_domain
 from privacyscanner.utils import set_default_options, file_is_outdated
 
-_EXTRACTOR_CLASSES = [LanguageExtractor, PrivacyPolicyTextExtractor]
+_EXTRACTOR_CLASSES = [PrivacyPolicyLanguageExtractor, PrivacyPolicyTextExtractor]
 
 _EXTRACTOR_CLASSES_WITH_ANALYSIS = [
     *_EXTRACTOR_CLASSES,
@@ -25,7 +25,7 @@ class PrivacyPolicyFetchModule(ScanModule):
                      # required by PrivacyPolicyTextExtractor
                      'privacy_policy_url',
                      # take site_url language in case the privacy_policy_url doesn't
-                     # specify its language -- should really never happen, but doesn't hurt
+                     # specify its language
                      'language',
                      ]
     _extractor_classes = _EXTRACTOR_CLASSES

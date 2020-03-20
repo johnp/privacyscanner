@@ -1,11 +1,13 @@
 import json
+from urllib.error import HTTPError
 
 from privacyscanner.scanmodules.chromedevtools.utils import parse_domain
 from privacyscanner.scanmodules.chromedevtools.extractors.keywordurl import KeywordURLExtractor
+from privacyscanner.exceptions import RescheduleLater
 from privacyscanner.utils import FAKE_UA
 
 from urllib.request import urlopen, Request
-from urllib.parse import urlparse, urlsplit, urljoin, quote
+from urllib.parse import urlsplit, quote
 from bs4 import BeautifulSoup
 
 _GOOGLE_TEMPLATE = 'https://www.google.com/search?q={}&hl={}'
@@ -42,6 +44,10 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
     RESULT_KEY = 'privacy_policy_url'
 
     def extract_information(self):
+        # Must be set, so that subsequent PrivacyPolicyScanModule jobs don't
+        # end up queueing forever.
+        self.result[self.RESULT_KEY] = None
+
         best_candidate, candidates = super(PrivacyPolicyURLExtractor, self).extract_information()
 
         self._load_policy_urls()
@@ -100,23 +106,29 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
         self.logger.info("Websearch for privacy policy of %s: %s", netloc, search_term)
         search_term = quote(search_term)
         url = _GOOGLE_TEMPLATE.format(search_term, self.result['language'])
-        with urlopen(Request(url, headers={'User-Agent': FAKE_UA})) as r:
-            html = r.read()
-        # try to parse the results
-        soup = BeautifulSoup(html, features='html.parser')
-        results = soup.select(selector='div.g', limit=10)
-        site_reg_domain = parse_domain(self.result['site_url']).registered_domain
-        final_reg_domain = parse_domain(self.result['final_url']).registered_domain
-        for result in results:
-            a = result.find_next('a', href=True)
-            if a:
-                href = a['href']
-                href_reg_domain = parse_domain(href).registered_domain
-                # don't return policies on other domains
-                if href_reg_domain == site_reg_domain or href_reg_domain == final_reg_domain:
-                    self.logger.info('Websearch found: %s', href)
-                    self.result[self.RESULT_KEY] = href
-                    break
+        try:
+            with urlopen(Request(url, headers={'User-Agent': FAKE_UA})) as r:
+                html = r.read()
+            # try to parse the results
+            soup = BeautifulSoup(html, features='html.parser')
+            results = soup.select(selector='div.g', limit=10)
+            site_reg_domain = parse_domain(self.result['site_url']).registered_domain
+            final_reg_domain = parse_domain(self.result['final_url']).registered_domain
+            for result in results:
+                a = result.find_next('a', href=True)
+                if a:
+                    href = a['href']
+                    href_reg_domain = parse_domain(href).registered_domain
+                    # don't return policies on other domains
+                    if href_reg_domain == site_reg_domain or href_reg_domain == final_reg_domain:
+                        self.logger.info('Websearch found: %s', href)
+                        self.result[self.RESULT_KEY] = href
+                        break
+        except HTTPError as e:
+            if e.code == 429:
+                self.logger.error("Websearch for privacy policy is sending too many requests!")
+            else:
+                raise e
         else:
             self.logger.error("Websearch for privacy policy url failed")
 

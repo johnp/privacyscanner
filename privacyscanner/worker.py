@@ -123,6 +123,7 @@ class WorkerMaster:
     def start(self):
         multiprocessing.set_start_method('spawn')
         signal.signal(signal.SIGINT, self._handle_signal_stop)
+        # TODO: sigterm immediately after start leaves all workers in None/None state indefinitely
         signal.signal(signal.SIGTERM, self._handle_signal_stop)
         signal.signal(signal.SIGUSR1, self._handle_signal_usr1)
         self._running = True

@@ -1,5 +1,7 @@
 import time
 
+from pychrome import CallMethodException
+
 from privacyscanner.scanmodules.chromedevtools.extractors.base import Extractor
 from privacyscanner.scanmodules.chromedevtools.extractors.utils import get_attr
 
@@ -13,6 +15,8 @@ _lang_identifier = None
 
 
 class LanguageExtractor(Extractor):
+    RESULT_KEY = 'language'
+
     def __init__(self, page, result, logger, options):
         super().__init__(page, result, logger, options)
         self.content = None
@@ -21,8 +25,11 @@ class LanguageExtractor(Extractor):
         self.content = content
 
     def extract_information(self):
-        node_id = self.page.tab.DOM.getDocument()['root']['nodeId']
-        html_node = self.page.tab.DOM.querySelector(nodeId=node_id, selector='html')
+        try:
+            node_id = self.page.tab.DOM.getDocument()['root']['nodeId']
+            html_node = self.page.tab.DOM.querySelector(nodeId=node_id, selector='html')
+        except CallMethodException:
+            html_node = None
         lang = None
         if html_node and 'nodeId' in html_node:
             # should be a ISO-639-1 language tag
@@ -43,9 +50,9 @@ class LanguageExtractor(Extractor):
                 lang = None
 
         if lang:
-            self.result['language'] = lang
-        elif 'language' not in self.result:
-            self.result['language'] = None
+            self.result[self.RESULT_KEY] = lang
+        elif self.RESULT_KEY not in self.result:
+            self.result[self.RESULT_KEY] = None
 
     def _get_lang_identifier(self) -> LangIdentifier:
         global _lang_identifier
@@ -61,3 +68,6 @@ class LanguageExtractor(Extractor):
             lang_identifier = LangIdentifier(data_dir=options['storage_path'] / 'lang_identifier')
             lang_identifier.download()
 
+
+class PrivacyPolicyLanguageExtractor(LanguageExtractor):
+    RESULT_KEY = 'privacy_policy_language'

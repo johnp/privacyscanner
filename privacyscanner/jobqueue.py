@@ -102,7 +102,9 @@ class JobQueue:
         with self._conn.cursor() as c:
             # TODO: somehow the `result` column sometimes starts with text like
             #  "213.82 kB (204.8 kB loaded)"
-            #  before the actual json. Not sure where this comes from...
+            #  before the actual json. Not sure where this comes from, maybe a DataGrip visual bug
+            #  (having postgres/psql show the jsonb as json does not show this, and there never
+            #   was a sentry error, so python seems to load the jsonb just fine)
             c.execute(_UPDATE_RESULT_QUERY, (Json(updates), self._last_job.scan_id))
         self._last_job = None
         self._conn.commit()
@@ -111,6 +113,7 @@ class JobQueue:
         assert self._last_job is not None
         self._last_job = None
         self._conn.rollback()
+        # TODO: exponential back-off support & (probabilistic) error-host avoidance
 
     def _connect(self):
         self._conn = psycopg2.connect(self._dsn)
