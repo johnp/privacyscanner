@@ -1,9 +1,10 @@
 import json
+import random
+import time
 from urllib.error import HTTPError
 
 from privacyscanner.scanmodules.chromedevtools.utils import parse_domain
 from privacyscanner.scanmodules.chromedevtools.extractors.keywordurl import KeywordURLExtractor
-from privacyscanner.exceptions import RescheduleLater
 from privacyscanner.utils import FAKE_UA
 
 from urllib.request import urlopen, Request
@@ -20,6 +21,10 @@ _TRACKER_RADAR_PRIVACY_POLICIES_URL = \
     'https://github.com/duckduckgo/tracker-radar/raw/master/build-data/static/privacy_policies.json'
 _tracker_radar_privacy_policies = None
 
+_websearch_backoff = {
+    'backoff_until:': None,
+    'counter': 0,
+}
 
 class PrivacyPolicyURLExtractor(KeywordURLExtractor):
     # parts from github.com/cliqz-oss/privacy-bot/blob/master/privacy_bot/mining/find_policies.py
@@ -98,6 +103,11 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
             return
 
         # as a last resort, try a websearch
+
+        # only if there wasn't a recent 429
+        if _websearch_backoff['backoff_until'] > time.time():
+            return
+
         _, netloc, _, _, _ = urlsplit(self.result['final_url'])
         search_term = self.LANG_SEARCH_TERMS.get(self.result['language'])
         if not search_term:
@@ -109,6 +119,8 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
         try:
             with urlopen(Request(url, headers={'User-Agent': FAKE_UA})) as r:
                 html = r.read()
+            _websearch_backoff['backoff_until'] = None
+            _websearch_backoff['counter'] = 0
             # try to parse the results
             soup = BeautifulSoup(html, features='html.parser')
             results = soup.select(selector='div.g', limit=10)
@@ -127,6 +139,10 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
         except HTTPError as e:
             if e.code == 429:
                 self.logger.error("Websearch for privacy policy is sending too many requests!")
+                _websearch_backoff['backoff_until'] = time.time() + \
+                                                      2 ** _websearch_backoff['counter'] + \
+                                                      random.randint(60, 300)
+                _websearch_backoff['counter'] += 1
             else:
                 raise e
         else:
