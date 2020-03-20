@@ -8,6 +8,7 @@ from privacyscanner.scanmodules.chromedevtools.extractors.utils import get_attr
 try:
     # textacy has an integrated LRU cache
     from textacy.lang_utils import LangIdentifier
+    from bs4 import BeautifulSoup
 except ImportError:
     LangIdentifier = None
 
@@ -25,26 +26,24 @@ class LanguageExtractor(Extractor):
         self.content = content
 
     def extract_information(self):
-        try:
-            node_id = self.page.tab.DOM.getDocument()['root']['nodeId']
-            html_node = self.page.tab.DOM.querySelector(nodeId=node_id, selector='html')
-        except CallMethodException:
-            html_node = None
-        lang = None
-        if html_node and 'nodeId' in html_node:
-            # should be a ISO-639-1 language tag
-            lang = get_attr(self, html_node['nodeId'], 'lang')
-            if lang and len(lang) != 2:
-                # self.logger.warning("Non ISO-639-1 language code: %s => clipped to 2 characters", lang)
-                lang = lang[:2].lower()
-            elif lang and len(lang) == 2:
-                lang = lang.lower()
+        # check html lang
+        lang = self._find_lang_attr_by_selector('html')
+
+        # check head lang
+        if not lang:
+            lang = self._find_lang_attr_by_selector('head')
+
+        # check body lang
+        if not lang:
+            lang = self._find_lang_attr_by_selector('body')
 
         # NLP fallback
         if not lang and LangIdentifier is not None and self.content:
             start = time.time()
             self.logger.info("Falling back to NLP language detection")
-            lang = self._get_lang_identifier().identify_lang(self.content)
+            soup = BeautifulSoup(self.content)
+            text = soup.get_text(strip=True)
+            lang = self._get_lang_identifier().identify_lang(text)
             self.logger.info("took %s seconds", time.time() - start)
             if lang == 'un':
                 lang = None
@@ -53,6 +52,23 @@ class LanguageExtractor(Extractor):
             self.result[self.RESULT_KEY] = lang
         elif self.RESULT_KEY not in self.result:
             self.result[self.RESULT_KEY] = None
+
+    def _find_lang_attr_by_selector(self, selector):
+        try:
+            node_id = self.page.tab.DOM.getDocument()['root']['nodeId']
+            selected_node = self.page.tab.DOM.querySelector(nodeId=node_id, selector=selector)
+        except CallMethodException:
+            selected_node = None
+        lang = None
+        if selected_node and 'nodeId' in selected_node:
+            # should be a ISO-639-1 language tag
+            lang = get_attr(self, selected_node['nodeId'], 'lang')
+            if lang and len(lang) != 2:
+                # self.logger.warning("Non ISO-639-1 language code: %s => clipped to 2 characters", lang)
+                lang = lang[:2].lower()
+            elif lang and len(lang) == 2:
+                lang = lang.lower()
+        return lang
 
     def _get_lang_identifier(self) -> LangIdentifier:
         global _lang_identifier
