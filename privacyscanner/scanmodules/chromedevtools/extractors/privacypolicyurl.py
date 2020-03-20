@@ -26,6 +26,7 @@ _websearch_backoff = {
     'counter': 0,
 }
 
+
 class PrivacyPolicyURLExtractor(KeywordURLExtractor):
     # parts from github.com/cliqz-oss/privacy-bot/blob/master/privacy_bot/mining/find_policies.py
     KEYWORDS = {'privacy policy': 0, 'datenschutzerklärung': 0,
@@ -60,17 +61,17 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
         scan_site = parse_domain(self.result['site_url'])
         alt_policy_url = None
         for name, entry in self.tracker_radar_privacy_policies.items():
-            url = entry.get('url')
+            url = entry.get('privacyPolicy')
             if not url:
-                # sometimes 'url' does not exists -> just use the policy url's registered domain
-                url = entry.get('privacyPolicy') or None
+                # sometimes 'privacyPolicy' does not exists -> just use the policy url's registered domain
+                url = entry.get('url') or None
 
             if url:
                 parsed_url = parse_domain(url)
                 # TODO: check if these could mismatch due too idna / non-idna encoding
                 if parsed_url.registered_domain == scan_site.registered_domain:
                     alt_policy_url = entry.get('privacyPolicy') or None
-            # TODO: add name matching, e.g. from SSL certificate
+            # TODO: add name matching, e.g. from SSL certificate?
 
         if best_candidate and alt_policy_url:
             split_alt_policy_url = urlsplit(alt_policy_url)
@@ -83,9 +84,8 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
                 # our keyword_url (roughly) matches the dataset
                 return  # prefer our version (could have regional query component, etc.)
 
-            # TODO: only consider high priority match good vs dataset
-            #       (our KeywordURLExtractor seems to return a bad result too often)
-            if not any(keyword.replace(' ', '-') in best_candidate.url for keyword in self.KEYWORDS.keys()):
+            if best_candidate.priority < 2 and not any(keyword.replace(' ', '-') in best_candidate.url
+                                                       for keyword in self.KEYWORDS.keys()):
                 # our URL looks kind'a bad; use the other one
                 self.logger.info("Chose dataset derived policy url %s over url %s found via keyword '%s' (prio: %s)",
                                  alt_policy_url, best_candidate.url, best_candidate.keyword, best_candidate.priority)
@@ -105,7 +105,8 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
         # as a last resort, try a websearch
 
         # only if there wasn't a recent 429
-        if _websearch_backoff['backoff_until'] > time.time():
+        backoff_until = _websearch_backoff.get('backoff_until')
+        if backoff_until and backoff_until > time.time():
             return
 
         _, netloc, _, _, _ = urlsplit(self.result['final_url'])
