@@ -41,7 +41,7 @@ class PrivacyPolicyFetchModule(ScanModule):
         parse_domain.cache_file = str(cache_file)
 
     def scan_site(self, result, meta):
-        if not result.get('reachable', True):
+        if not result.get('reachable', True) or not result.get('privacy_policy_url'):
             return
         chrome_scan = ChromeScan(self._extractor_classes)
         debugging_port = self.options.get('start_port', 9222) + meta.worker_id
