@@ -14,3 +14,6 @@ class Extractor:
 
     def register_javascript(self):
         pass
+
+    def receive_content(self, content):
+        pass

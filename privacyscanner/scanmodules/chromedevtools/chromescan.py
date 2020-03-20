@@ -393,6 +393,7 @@ class PageScanner:
                 res = self._tab.Page.getResourceContent(frameId=response['extra']['frameId'],
                                                         url=response['url'])
                 content = b64decode(res['content']) if res['base64Encoded'] else res['content'].encode()
+                self._receive_content(content)
             else:
                 content = b''
         else:
@@ -583,6 +584,10 @@ class PageScanner:
     def _receive_log(self, log_type, message, call_stack):
         for extractor in self._extractors:
             extractor.receive_log(log_type, message, call_stack)
+
+    def _receive_content(self, content):
+        for extractor in self._extractors:
+            extractor.receive_content(content)
 
     def _register_javascript(self):
         for extractor in self._extractors:
