@@ -136,8 +136,8 @@ class KeywordURLExtractor(Extractor, metaclass=ABCMeta):
         else:
             self.result[self.RESULT_KEY] = None
             self.result[self.RESULT_KEY + '_keyword'] = None
-            self.logger.warning("Could not find keyword link for '%s' on site '%s'",
-                                str(self.__class__.__name__), self.result['site_url'])
+            #self.logger.warning("Could not find keyword link for '%s' on site '%s'",
+            #                    str(self.__class__.__name__), self.result['site_url'])
         # return to allow superclasses to implement domain-specific fallback or logic
         return best_candidate, keyword_url_candidates
 
