@@ -32,8 +32,6 @@ class PrivacyPolicyThirdPartyAnalysis(Extractor):
         privacy_policy = self.result['privacy_policy']
         privacy_policy_casefold = self.result['privacy_policy'].casefold()
 
-        # TODO: somehow using a set with .union and .add looses fqdns (json has `"organization": []`)
-        #        (I probably just used a lazy generator somewhere that was drained before list conversion)
         missing: Dict[str, Set[str]] = defaultdict(set)
         mentioned: Dict[str, Set[str]] = defaultdict(set)
         unattributed_fqdns = []

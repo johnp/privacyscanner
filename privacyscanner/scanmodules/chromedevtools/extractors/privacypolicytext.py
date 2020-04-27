@@ -57,7 +57,7 @@ _INNER_TEXT_EXTRACT_JS = '''
 '''
 
 
-# TODO: consider saving the policy text to a file instead
+# TODO: consider saving the policy text to a fileresult instead
 class PrivacyPolicyTextExtractor(Extractor):
 
     def extract_information(self):
@@ -81,10 +81,15 @@ class PrivacyPolicyTextExtractor(Extractor):
             self.logger.warning("Fell back to '%s' method for privacy policy text extraction on '%s'.",
                                 res['source'], self.result['privacy_policy_url'])
         # TODO: empirically determine a good cut-off value for suspiciously small extracted policy
+        #       edit: data exploration shows this metric to be pretty useless :(
         elif res['body_innerText_length'] > 0 and res['privacy_policy_length'] / res['body_innerText_length'] < 0.7:
             self.logger.warning(
                 "Extracted privacy policy from '%s' is significantly smaller than the website text (%s / %s).",
                 self.result['privacy_policy_url'], res['privacy_policy_length'], res['body_innerText_length'])
+
+        # TODO: consider filtering server errors (status code?) and "non-EU-support" notices
+        #       (experimentation lead to cutoff at ~700 bytes in post-processing; word count likely better)
+        # TODO: implement a proper privacy policy classifier (but very likely needs to be language specific)
 
         self.result['privacy_policy_metadata'] = {
             'title': res['privacy_policy_title'],
@@ -94,6 +99,7 @@ class PrivacyPolicyTextExtractor(Extractor):
         }
         self.result['privacy_policy'] = res['privacy_policy']
 
+    # TODO: cache
     def _readability_extract_js(self):
         with open(self.options['storage_path'] / 'Readability.js') as f:
             return f.read() + '\n\n' + _READABILITY_EXTRACT_JS

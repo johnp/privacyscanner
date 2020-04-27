@@ -24,6 +24,8 @@ CHANGE_WAIT_TIME = 15
 
 # See https://github.com/GoogleChrome/chrome-launcher/blob/master/docs/chrome-flags-for-tools.md
 # See also https://peter.sh/experiments/chromium-command-line-switches/
+# TODO: check if navigator.webdriver / NavigatorAutomationInformation is exposed via pychrome
+#  https://stackoverflow.com/questions/53039551
 CHROME_OPTIONS = [
     # Disable various background network services, including extension
     # updating, safe browsing service, upgrade detector, translate, UMA
@@ -50,6 +52,7 @@ CHROME_OPTIONS = [
     '--no-first-run',
 
     # Disable Google's field trials that can even affect chromium builds
+    # TODO: check if this is effective
     '--disable-field-trial-config',
 
     # Disable timers being throttled in background pages/tabs
@@ -68,6 +71,15 @@ CHROME_OPTIONS = [
     # Disable a few things considered not appropriate for automation.
     # (includes password saving UI, default browser prompt, etc.)
     '--enable-automation',
+
+    # TODO: Discuss if we want any of these:
+    #'--deterministic-mode', #  (check which flags this sets internally)
+    #'--disable-best-effort-tasks',  # (check which tasks this affects internally)
+    #'--disable-cookie-encryption',  # (on-disk only; might give a slight speed up)
+    #'--disable-crash-reporter',  # (might speed up re-launch)
+    #'--no-crash-upload'  # (at least this)
+    #'--ssl-version-min tls1',  #
+    #'',  #
 
     # Avoid potential instability of using Gnome Keyring or KDE wallet.
     # crbug.com/571003

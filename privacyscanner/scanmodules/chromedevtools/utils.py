@@ -72,6 +72,8 @@ def walk_fqdn_until_public_suffix(fqdn):
 
 
 # TODO: Check with henning if `include_psl_private_domains=True` is OK
+#       (also if fqdn is an an exact private PSL suffix, does the
+#        tldextract suffix then show the public one? it should.)
 # Reasoning: This includes stuff like *.appspot.com, where trackers could be hosted and
 #            we don't want to attribute these to, e.g. Google in that case.
 # TODO: shouldn't this live in the top-level utils/ this is used in dns.py as well

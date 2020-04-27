@@ -10,10 +10,11 @@ from privacyscanner.utils import set_default_options, file_is_outdated
 
 _EXTRACTOR_CLASSES = [PrivacyPolicyLanguageExtractor, PrivacyPolicyTextExtractor]
 
+_ANALYSIS_CLASSES = [PrivacyPolicyOrganizationsExtractor, PrivacyPolicyThirdPartyAnalysis,]
+
 _EXTRACTOR_CLASSES_WITH_ANALYSIS = [
     *_EXTRACTOR_CLASSES,
-    PrivacyPolicyOrganizationsExtractor,
-    PrivacyPolicyThirdPartyAnalysis,
+    *_ANALYSIS_CLASSES
 ]
 
 
@@ -72,3 +73,7 @@ class PrivacyPolicyScanModule(PrivacyPolicyFetchModule):
             'organizations',
             'third_parties_tracker_radar',
         ]
+
+
+class PrivacyPolicyAnalysisModule(PrivacyPolicyScanModule):
+    _extractor_classes = _ANALYSIS_CLASSES

@@ -30,8 +30,11 @@ class PrivacyPolicyOrganizationsExtractor(Extractor):
             return
 
         # fallback to multi-language model on unknown language
-        lang = self.result['language'] if self.result['language'] else 'xx'
-        if lang == 'xx':
+        lang = self.result.get('privacy_policy_language', None)
+        if not lang:
+            lang = self.result.get('language', None)
+        if not lang:
+            lang = 'xx'
             self.logger.warning("Fallback to multi-language model on site: %s",
                                 self.result['privacy_policy_url'])
 
@@ -54,6 +57,7 @@ class PrivacyPolicyOrganizationsExtractor(Extractor):
         self.result['privacy_policy_organizations_model'] = nlp.meta.get('name')
         self.logger.info('PrivacyPolicyOrganizationsExtractor: %.3f s', time.time() - start)
 
+    # TODO: cache more/all models globally by moving this into its own module
     def _load_spacy(self, language):
         global _nlp_en  # always keep the english version in cache
 
@@ -86,3 +90,47 @@ class PrivacyPolicyOrganizationsExtractor(Extractor):
         spacy.cli.download('de')
         # TODO: should we download more models eagerly?
         # TODO: re-consider "xx_ent_wiki_sm" fallback
+
+
+if __name__ == '__main__':
+    """
+        Runs the given text file or all text files in the given folder through
+        Named-entity recognition for organizations and exports the results to
+        a .json file with the same base file name.
+    """
+
+    import sys
+    import json
+    from pathlib import Path
+    if len(sys.argv) < 3:
+        print("./privacypolicyorganizations.py [text_file_folder] [language]")
+        exit(-1)
+
+    path = Path(sys.argv[1])
+    if not path.exists():
+        print("Path does not exist", file=sys.stderr)
+        exit(-2)
+
+    nlp = spacy.load(sys.argv[2])
+
+    def process_file(file):
+        out = file.with_suffix('json')
+        if out.exists():
+            print("Output file already exists", file=sys.stderr)
+            exit(-3)
+
+        with open(file) as f:
+            text = f.read()
+        doc = nlp(text)
+        orgs = set(ent.text for ent in doc.ents if ent.text and ent.label_ == 'ORG')
+
+        with open(file.with_suffix('json'), 'w') as f:
+            json.dump(list(orgs), f)
+
+    if path.is_dir():
+        files = path.iterdir()
+    else:
+        files = (path for path in [path])
+
+    for f in files:
+        process_file(f)

@@ -116,10 +116,12 @@ class KeywordURLExtractor(Extractor, metaclass=ABCMeta):
 
         if best_candidate:
             keyword, priority, keyword_link = best_candidate
-            if keyword_link.startswith('//'):
+            # TODO: Data shows some relative KeywordURLs (e.g. href='/imprint') that are not normalized
+            #       (consider rewriting this with urljoin/urlunsplit)
+            if keyword_link.startswith('//'):  # same scheme as document
                 p = urlparse(self.result['final_url'])
                 keyword_link = '{}:{}'.format(p.scheme, keyword_link)
-            elif keyword_link.startswith('/'):
+            elif keyword_link.startswith('/'):  # relative to root
                 p = urlparse(self.result['final_url'])
                 keyword_link = '{}://{}{}'.format(p.scheme, p.hostname, keyword_link)
             elif keyword_link.startswith(('https://', 'http://')):

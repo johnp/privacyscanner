@@ -212,6 +212,7 @@ def scan_site(args):
 
 
 # TODO: this works around `site_url` not being marked as unique
+#       edit: I assumed (wrongly) that sites should be unique; discuss
 _INSERT_SITE_IFF_NOT_EXISTS_QUERY = """
 INSERT INTO sites_site
 (id, url, is_private, latest_scan_id, date_created, num_views)
@@ -297,6 +298,7 @@ def schedule_scans(args):
         for site_url in site_urls:
             # TODO: normalize site_url if sites_site should not contain duplicate http/https entries
             # TODO: not sure what the new privacyscore does here; I'm just using a deterministic uuid
+            #       edit: privacyscore-backend uses a random UUID
             site_id = str(uuid.uuid5(uuid.NAMESPACE_URL, site_url))
 
             # insert if not exists: sites_site (40 char uuid?)

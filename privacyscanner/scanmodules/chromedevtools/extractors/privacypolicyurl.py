@@ -35,6 +35,7 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
                 'mentions légales': 0, 'conditions générales': 0,
                 'termini-e-condizioni': 0,
                 'privacy statement': 1,
+                'privacy notice': 1,
                 'datenschutz': 1,
                 'privacy': 2,
                 'legal': 3,
@@ -103,10 +104,12 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
             return
 
         # as a last resort, try a websearch
+        # TODO: drop or make configurable
 
         # only if there wasn't a recent 429
         backoff_until = _websearch_backoff.get('backoff_until')
         if backoff_until and backoff_until > time.time():
+            self.logger.warning("Websearch for privacy policy waiting for backoff timer.")
             return
 
         _, netloc, _, _, _ = urlsplit(self.result['final_url'])
@@ -136,6 +139,7 @@ class PrivacyPolicyURLExtractor(KeywordURLExtractor):
                     if href_reg_domain == site_reg_domain or href_reg_domain == final_reg_domain:
                         self.logger.info('Websearch found: %s', href)
                         self.result[self.RESULT_KEY] = href
+                        self.result[self.RESULT_KEY + '_source'] = 'websearch'
                         break
         except HTTPError as e:
             if e.code == 429:
